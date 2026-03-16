@@ -1,0 +1,5 @@
+{
+  "name": "GPS Tracker & Locator",
+  "description": "A web application that helps you track your real-time location and guides you through enabling GPS permissions.",
+  "requestFramePermissions": ["geolocation"]
+}
