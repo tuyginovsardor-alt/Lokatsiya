@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, Circle } from 'react-leaflet';
 import { MapPin, Navigation, Settings, ShieldAlert, RefreshCw, Compass, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import L from 'leaflet';
@@ -32,6 +32,7 @@ function ChangeView({ center }: { center: [number, number] }) {
 
 export default function App() {
   const [position, setPosition] = useState<[number, number] | null>(null);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
   const [status, setStatus] = useState<PermissionStatus>('loading');
   const [error, setError] = useState<string | null>(null);
   const [isTracking, setIsTracking] = useState(false);
@@ -48,6 +49,7 @@ export default function App() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setPosition([pos.coords.latitude, pos.coords.longitude]);
+        setAccuracy(pos.coords.accuracy);
         setStatus('granted');
         setIsTracking(true);
       },
@@ -61,7 +63,7 @@ export default function App() {
           setError("Joylashuvni aniqlashda xatolik yuz berdi.");
         }
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
 
@@ -97,6 +99,7 @@ export default function App() {
       watchId = navigator.geolocation.watchPosition(
         (pos) => {
           setPosition([pos.coords.latitude, pos.coords.longitude]);
+          setAccuracy(pos.coords.accuracy);
         },
         (err) => console.error(err),
         { enableHighAccuracy: true }
@@ -117,11 +120,21 @@ export default function App() {
           </div>
           <h1 className="text-xl font-bold tracking-tight text-slate-900">GPS Locator</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${status === 'granted' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-          <span className="text-sm font-medium text-slate-500 uppercase tracking-wider">
-            {status === 'granted' ? 'Jonli' : 'Oflayn'}
-          </span>
+        <div className="flex items-center gap-4">
+          {accuracy && (
+            <div className="hidden md:flex flex-col items-end">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Aniqlik</span>
+              <span className={`text-xs font-bold ${accuracy < 50 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                ±{Math.round(accuracy)} metr
+              </span>
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${status === 'granted' ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+            <span className="text-sm font-medium text-slate-500 uppercase tracking-wider">
+              {status === 'granted' ? 'Jonli' : 'Oflayn'}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -154,7 +167,6 @@ export default function App() {
               <h2 className="text-2xl font-bold text-slate-900 mb-3">GPS Ruxsati Kerak</h2>
               <p className="text-slate-600 mb-8 leading-relaxed">
                 Ilovadan foydalanish uchun GPS joylashuvni aniqlash ruxsatini berishingiz kerak. 
-                Bu sizning xaritadagi o'rningizni ko'rsatish uchun zarur.
               </p>
               
               <div className="bg-slate-100 rounded-2xl p-6 w-full text-left mb-8">
@@ -224,17 +236,32 @@ export default function App() {
                     url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                   />
                 )}
+                
+                {accuracy && (
+                  <Circle 
+                    center={position} 
+                    radius={accuracy} 
+                    pathOptions={{ 
+                      fillColor: '#6366f1', 
+                      fillOpacity: 0.15, 
+                      color: '#6366f1', 
+                      weight: 1,
+                      dashArray: '5, 5'
+                    }} 
+                  />
+                )}
+
                 <Marker position={position}>
                   <Popup>
                     Siz shu yerdasiz! <br />
-                    Lat: {position[0].toFixed(4)}, Lng: {position[1].toFixed(4)}
+                    Aniqlik: ±{Math.round(accuracy || 0)}m
                   </Popup>
                 </Marker>
                 <ChangeView center={position} />
               </MapContainer>
 
               {/* Map Type Toggle */}
-              <div className="absolute top-6 right-6 z-[1000]">
+              <div className="absolute top-6 right-6 z-[1000] flex flex-col gap-3">
                 <button
                   onClick={() => setMapType(prev => prev === 'street' ? 'satellite' : 'street')}
                   className="bg-white/90 backdrop-blur-md border border-slate-200 p-3 rounded-2xl shadow-xl flex items-center gap-2 hover:bg-white transition-all group"
@@ -247,6 +274,21 @@ export default function App() {
                   </span>
                 </button>
               </div>
+
+              {/* Accuracy Warning for Desktop */}
+              {accuracy && accuracy > 100 && (
+                <div className="absolute top-6 left-6 z-[1000] max-w-[240px]">
+                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-2xl shadow-lg flex gap-3 items-start">
+                    <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-amber-900 mb-1">Past aniqlik</p>
+                      <p className="text-[10px] text-amber-700 leading-tight">
+                        Kompyuterda joylashuv IP orqali aniqlanishi mumkin. Aniqroq natija uchun telefoningizdan foydalaning yoki ilovani yangi oynada oching.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Location Info Overlay */}
               <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[calc(100%-3rem)] max-w-md z-[1000]">
